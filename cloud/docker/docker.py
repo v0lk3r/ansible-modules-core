@@ -1432,6 +1432,9 @@ class DockerManager(object):
         else:
             params['host_config']['Memory'] = mem_limit
 
+        major, minor, patch = get_docker_py_versioninfo()
+        if (major == 0 and minor <= 5 and patch <= 3):
+            del params['cpuset']
 
         def do_create(count, params):
             results = []
