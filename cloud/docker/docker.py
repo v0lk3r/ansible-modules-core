@@ -734,14 +734,17 @@ class DockerManager(object):
 
         self.docker_py_versioninfo = get_docker_py_versioninfo()
 
+    @property
+    def client_api_version(self):
+        return float(self.client.version()['ApiVersion'])
+
     def _check_capabilities(self):
         """
         Create a list of available capabilities
         """
-        api_version = self.client.version()['ApiVersion']
         for cap, req_vers in self._cap_ver_req.items():
             if (self.docker_py_versioninfo >= req_vers[0] and
-                    docker.utils.compare_version(req_vers[1], api_version) >= 0):
+                    docker.utils.compare_version(req_vers[1], str(self.client_api_version)) >= 0):
                 self._capabilities.add(cap)
 
     def ensure_capability(self, capability, fail=True):
@@ -763,7 +766,6 @@ class DockerManager(object):
         if not fail:
             return False
 
-        api_version = self.client.version()['ApiVersion']
         self.module.fail_json(msg='Specifying the `%s` parameter requires'
                 ' docker-py: %s, docker server apiversion %s; found'
                 ' docker-py: %s, server: %s' % (
@@ -771,7 +773,7 @@ class DockerManager(object):
                     '.'.join(map(str, self._cap_ver_req[capability][0])),
                     self._cap_ver_req[capability][1],
                     '.'.join(map(str, self.docker_py_versioninfo)),
-                    api_version))
+                    self.client_api_version))
 
     def get_links(self, links):
         """
@@ -1019,7 +1021,6 @@ class DockerManager(object):
         current = self.get_inspect_containers(running)
 
         #Get API version
-        api_version = self.client.version()['ApiVersion']
 
         image = self.get_inspect_image()
         if image is None:
@@ -1088,7 +1089,7 @@ class DockerManager(object):
                 self.module.fail_json(msg=str(e))
 
             #For v1.19 API and above use HostConfig, otherwise use Config
-            if api_version >= 1.19:
+            if self.client_api_version >= 1.19:
                 actual_mem = container['HostConfig']['Memory']
             else:
                 actual_mem = container['Config']['Memory']
@@ -1407,7 +1408,6 @@ class DockerManager(object):
             mem_limit = _human_to_bytes(self.module.params.get('memory_limit'))
         except ValueError as e:
             self.module.fail_json(msg=str(e))
-        api_version = self.client.version()['ApiVersion']
 
         params = {'image':        self.module.params.get('image'),
                   'command':      self.module.params.get('command'),
@@ -1427,7 +1427,7 @@ class DockerManager(object):
             params['host_config'] = self.create_host_config()
 
         #For v1.19 API and above use HostConfig, otherwise use Config
-        if api_version < 1.19:
+        if self.client_api_version < 1.19:
             params['mem_limit'] = mem_limit
         else:
             params['host_config']['Memory'] = mem_limit
